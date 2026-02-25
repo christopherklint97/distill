@@ -13,6 +13,7 @@ Transform YouTube videos and podcast episodes into readable articles using LLM-p
 - **Multiple output formats** — Markdown, HTML, or EPUB
 - **Subscription management** — Subscribe to podcast feeds and sync for new episodes
 - **Local caching** — SQLite database stores transcripts and articles for fast regeneration
+- **Email delivery** — Send articles to your inbox via [Resend](https://resend.com)
 - **Configurable** — TOML config file with environment variable overrides
 
 ## Installation
@@ -36,6 +37,7 @@ uv sync --extra whisper
 ```bash
 export ANTHROPIC_API_KEY="your-key"    # Required — Claude API
 export OPENAI_API_KEY="your-key"       # Optional — Whisper API backend
+export RESEND_API_KEY="re_xxx"         # Optional — Email delivery via Resend
 ```
 
 ## Usage
@@ -57,6 +59,9 @@ distill youtube "https://youtube.com/watch?v=abc123" --language sv
 
 # Transcribe in Swedish but write the article in English
 distill youtube "https://youtube.com/watch?v=abc123" --language sv --article-language en
+
+# Send the article via email
+distill youtube "https://youtube.com/watch?v=abc123" --send email
 ```
 
 ### Podcasts
@@ -123,10 +128,16 @@ language = "en"
 model = "claude-sonnet-4-6"
 max_tokens = 8192
 
+[email]
+to = "you@example.com"
+from_addr = "Distill <distill@resend.dev>"
+
 [subscriptions]
 check_interval_hours = 24
 auto_process = false
 ```
+
+Environment variable overrides: `DISTILL_EMAIL_TO`, `DISTILL_EMAIL_FROM`.
 
 ## Article Styles
 
@@ -174,5 +185,6 @@ src/distill/
 └── output/
     ├── markdown.py     # Markdown renderer
     ├── html.py         # HTML renderer
-    └── epub.py         # EPUB renderer
+    ├── epub.py         # EPUB renderer
+    └── email.py        # Email delivery via Resend API
 ```
