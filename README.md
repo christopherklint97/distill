@@ -37,7 +37,7 @@ uv sync --extra whisper
 
 ```bash
 export ANTHROPIC_API_KEY="your-key"    # Required — Claude API
-export OPENAI_API_KEY="your-key"       # Optional — Whisper API backend
+export OPENAI_API_KEY="your-key"       # Required — Whisper API (default transcription backend)
 export RESEND_API_KEY="re_xxx"         # Optional — Email delivery via Resend
 ```
 
@@ -117,7 +117,7 @@ distill regenerate <content-id> --article-language sv
 distill config show
 
 # Change settings
-distill config set whisper.backend api
+distill config set whisper.backend local
 distill config set claude.model claude-sonnet-4-6
 ```
 
@@ -130,7 +130,7 @@ default_format = "markdown"
 default_style = "detailed"
 
 [whisper]
-backend = "local"    # "local" or "api"
+backend = "api"      # "api" or "local"
 model = "base"       # tiny, base, small, medium, large
 language = "en"
 
