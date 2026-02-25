@@ -227,9 +227,55 @@ def youtube(
     db.close()
 
 
+def _select_feed_interactive(db: Database) -> str:
+    """Show interactive menu to pick a podcast feed."""
+    subs = db.get_subscriptions()
+    recents = db.get_recent_feeds()
+
+    options: list[tuple[str, str, str]] = []
+    for sub in subs:
+        label = "[fav] " if sub.get("favorite") else ""
+        title = str(sub.get("title") or sub["feed_url"])
+        options.append((f"{label}{title}", str(sub["feed_url"]), "sub"))
+
+    for rec in recents:
+        title = str(rec.get("title") or rec["feed_url"])
+        options.append((title, str(rec["feed_url"]), "recent"))
+
+    if options:
+        console.print("\n[bold]Select a podcast:[/bold]\n")
+        for i, (label, _url, _kind) in enumerate(options):
+            console.print(f"  [{i + 1}] {label}")
+        console.print(f"  [{len(options) + 1}] Add a new podcast")
+
+        choice: int = typer.prompt("\nSelect option", type=int)
+        if choice == len(options) + 1:
+            return str(typer.prompt("Enter feed URL"))
+        if choice < 1 or choice > len(options):
+            console.print("[red]Invalid selection.[/red]")
+            raise typer.Exit(1)
+        return options[choice - 1][1]
+    else:
+        return str(typer.prompt("Enter feed URL"))
+
+
+def _prompt_save_favorite(db: Database, feed_url: str, feed_title: str | None) -> None:
+    """After episode selection, offer to save as favorite if not already."""
+    subs = db.get_subscriptions()
+    for sub in subs:
+        if str(sub["feed_url"]) == feed_url and sub.get("favorite"):
+            return  # Already a favorite
+
+    if typer.confirm("Save this podcast as a favorite?", default=False):
+        db.save_subscription(feed_url, title=feed_title, favorite=True)
+        console.print("[green]Saved as favorite.[/green]")
+
+
 @app.command()
 def podcast(
-    feed_url: Annotated[str, typer.Argument(help="Podcast RSS feed URL")],
+    feed_url: Annotated[
+        str | None, typer.Argument(help="Podcast RSS feed URL")
+    ] = None,
     format: FormatOption = "markdown",
     style: StyleOption = "detailed",
     output: OutputOption = None,
@@ -246,6 +292,11 @@ def podcast(
 
     config = _get_config()
     db = _get_db(config)
+
+    interactive = feed_url is None
+    if interactive:
+        feed_url = _select_feed_interactive(db)
+    assert feed_url is not None
 
     console.print(f"[bold]Parsing feed: {feed_url}[/bold]")
     try:
@@ -301,6 +352,10 @@ def podcast(
         transcript, source, style, format, output_dir, config, db,
         article_lang, send,
     )
+
+    if interactive:
+        _prompt_save_favorite(db, feed_url, feed.title)
+
     db.close()
 
 
@@ -416,6 +471,44 @@ def subscribe(
 
 
 @app.command()
+def favorite(
+    feed_url: Annotated[str, typer.Argument(help="Podcast RSS feed URL")],
+) -> None:
+    """Mark a podcast as a favorite (subscribes if needed)."""
+    from distill.sources.podcast import parse_feed
+
+    config = _get_config()
+    db = _get_db(config)
+
+    subs = db.get_subscriptions()
+    existing = [s for s in subs if str(s["feed_url"]) == feed_url]
+    if existing:
+        db.set_favorite(feed_url, favorite=True)
+    else:
+        try:
+            feed = parse_feed(feed_url)
+            title = feed.title
+        except Exception:
+            title = None
+        db.save_subscription(feed_url, title=title, favorite=True)
+
+    console.print(f"[green]Marked as favorite: {feed_url}[/green]")
+    db.close()
+
+
+@app.command()
+def unfavorite(
+    feed_url: Annotated[str, typer.Argument(help="Podcast RSS feed URL")],
+) -> None:
+    """Remove a podcast from favorites."""
+    config = _get_config()
+    db = _get_db(config)
+    db.set_favorite(feed_url, favorite=False)
+    console.print(f"[green]Removed from favorites: {feed_url}[/green]")
+    db.close()
+
+
+@app.command()
 def subscriptions() -> None:
     """List all podcast subscriptions."""
     config = _get_config()
@@ -430,6 +523,7 @@ def subscriptions() -> None:
     table = Table(title="Podcast Subscriptions")
     table.add_column("Title", style="bold")
     table.add_column("Feed URL")
+    table.add_column("Favorite")
     table.add_column("Last Checked")
     table.add_column("Auto")
 
@@ -437,6 +531,7 @@ def subscriptions() -> None:
         table.add_row(
             str(sub.get("title", "")),
             str(sub["feed_url"]),
+            "Yes" if sub.get("favorite") else "No",
             str(sub.get("last_checked", "Never")),
             "Yes" if sub.get("auto_process") else "No",
         )

@@ -1,5 +1,6 @@
 """SQLite storage layer for Distill."""
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     last_checked TEXT,
     last_episode_date TEXT,
     auto_process BOOLEAN DEFAULT FALSE,
+    favorite BOOLEAN DEFAULT FALSE,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -77,9 +79,17 @@ class Database:
         self._init_schema()
 
     def _init_schema(self) -> None:
-        """Create tables if they don't exist."""
+        """Create tables if they don't exist and run migrations."""
         self._conn.executescript(_SCHEMA)
+        self._migrate_subscriptions_favorite()
         self._conn.commit()
+
+    def _migrate_subscriptions_favorite(self) -> None:
+        """Add favorite column to subscriptions if missing."""
+        with contextlib.suppress(sqlite3.OperationalError):
+            self._conn.execute(
+                "ALTER TABLE subscriptions ADD COLUMN favorite BOOLEAN DEFAULT FALSE"
+            )
 
     def close(self) -> None:
         """Close the database connection."""
@@ -231,20 +241,30 @@ class Database:
         feed_url: str,
         title: str | None = None,
         auto_process: bool = False,
+        favorite: bool | None = None,
     ) -> None:
         """Add or update a podcast subscription."""
+        if favorite is None:
+            # Preserve existing favorite value on upsert
+            row = self._conn.execute(
+                "SELECT favorite FROM subscriptions WHERE feed_url = ?",
+                (feed_url,),
+            ).fetchone()
+            fav = bool(row["favorite"]) if row else False
+        else:
+            fav = favorite
         self._conn.execute(
             """INSERT OR REPLACE INTO subscriptions
-               (feed_url, title, auto_process)
-               VALUES (?, ?, ?)""",
-            (feed_url, title, auto_process),
+               (feed_url, title, auto_process, favorite)
+               VALUES (?, ?, ?, ?)""",
+            (feed_url, title, auto_process, fav),
         )
         self._conn.commit()
 
     def get_subscriptions(self) -> list[dict[str, object]]:
-        """List all subscriptions."""
+        """List all subscriptions, favorites first."""
         rows = self._conn.execute(
-            "SELECT * FROM subscriptions ORDER BY created_at DESC"
+            "SELECT * FROM subscriptions ORDER BY favorite DESC, created_at DESC"
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -261,6 +281,30 @@ class Database:
             (datetime.now().isoformat(), last_episode_date, feed_url),
         )
         self._conn.commit()
+
+    def set_favorite(self, feed_url: str, favorite: bool) -> None:
+        """Set or clear the favorite flag on a subscription."""
+        self._conn.execute(
+            "UPDATE subscriptions SET favorite = ? WHERE feed_url = ?",
+            (favorite, feed_url),
+        )
+        self._conn.commit()
+
+    def get_recent_feeds(self, limit: int = 10) -> list[dict[str, object]]:
+        """Get recent podcast feeds from sources not already in subscriptions."""
+        rows = self._conn.execute(
+            """SELECT DISTINCT s.feed_url, s.title, MAX(s.created_at) as created_at
+               FROM sources s
+               LEFT JOIN subscriptions sub ON s.feed_url = sub.feed_url
+               WHERE s.source_type = 'podcast'
+                 AND s.feed_url IS NOT NULL
+                 AND sub.feed_url IS NULL
+               GROUP BY s.feed_url
+               ORDER BY MAX(s.created_at) DESC
+               LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def delete_subscription(self, feed_url: str) -> None:
         """Remove a subscription."""
