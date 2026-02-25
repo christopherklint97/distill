@@ -36,5 +36,12 @@ data/
 .DS_Store
 Thumbs.db
 
+# Environment files
+.env
+.env.*
+
 # Config (may contain API keys)
 config.toml
+
+# Claude Code
+.claude/
