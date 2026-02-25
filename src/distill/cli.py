@@ -117,6 +117,13 @@ OutputOption = Annotated[
     str | None,
     typer.Option("--output", "-o", help="Output directory"),
 ]
+LanguageOption = Annotated[
+    str | None,
+    typer.Option(
+        "--language", "-l",
+        help="Language code for transcription (e.g., en, sv)",
+    ),
+]
 
 
 @app.command()
@@ -125,6 +132,7 @@ def youtube(
     format: FormatOption = "markdown",
     style: StyleOption = "detailed",
     output: OutputOption = None,
+    language: LanguageOption = None,
 ) -> None:
     """Process a YouTube video into an article."""
     from distill.sources.youtube import extract_video_id, fetch_transcript
@@ -193,6 +201,7 @@ def podcast(
     format: FormatOption = "markdown",
     style: StyleOption = "detailed",
     output: OutputOption = None,
+    language: LanguageOption = None,
 ) -> None:
     """Browse and process episodes from a podcast feed."""
     from distill.sources.podcast import (
@@ -241,7 +250,7 @@ def podcast(
     else:
         console.print(f"[bold]Downloading: {episode.title}[/bold]")
         audio_path = download_episode(episode.audio_url)
-        transcript = _transcribe_audio(audio_path, cid, config)
+        transcript = _transcribe_audio(audio_path, cid, config, language)
 
     db.save_source(source)
     db.save_transcript(transcript)
@@ -264,6 +273,7 @@ def podcast_episode(
     format: FormatOption = "markdown",
     style: StyleOption = "detailed",
     output: OutputOption = None,
+    language: LanguageOption = None,
 ) -> None:
     """Process a podcast episode from a direct audio URL."""
     from distill.sources.podcast import download_episode
@@ -283,7 +293,7 @@ def podcast_episode(
     else:
         console.print("[bold]Downloading audio...[/bold]")
         audio_path = download_episode(audio_url)
-        transcript = _transcribe_audio(audio_path, cid, config)
+        transcript = _transcribe_audio(audio_path, cid, config, language)
 
     db.save_source(source)
     db.save_transcript(transcript)
@@ -300,11 +310,14 @@ def podcast_episode(
 
 
 def _transcribe_audio(
-    audio_path: Path, content_id: str, config: DistillConfig
+    audio_path: Path,
+    content_id: str,
+    config: DistillConfig,
+    language_override: str | None = None,
 ) -> Transcript:
     """Transcribe an audio file using the configured backend."""
     backend = config.whisper.backend
-    language = config.whisper.language
+    language = language_override or config.whisper.language
 
     console.print(f"[bold]Transcribing with {backend} backend...[/bold]")
 
