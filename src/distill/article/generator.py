@@ -102,6 +102,7 @@ def generate_article(
     style: str = "detailed",
     config: ClaudeConfig | None = None,
     client: anthropic.Anthropic | None = None,
+    language: str = "en",
 ) -> Article:
     """Generate an article from a transcript.
 
@@ -115,10 +116,12 @@ def generate_article(
 
     if len(transcript_text) <= _SINGLE_PASS_CHAR_LIMIT:
         return _generate_single_pass(
-            transcript_text, content_id, source, style, config, client
+            transcript_text, content_id, source, style, config, client,
+            language,
         )
     return _generate_chunked(
-        transcript_text, content_id, source, style, config, client
+        transcript_text, content_id, source, style, config, client,
+        language,
     )
 
 
@@ -129,13 +132,16 @@ def _generate_single_pass(
     style: str,
     config: ClaudeConfig,
     client: anthropic.Anthropic,
+    language: str = "en",
 ) -> Article:
     """Generate an article in a single API call."""
     logger.info(
         "Generating article (single-pass, ~%d tokens)",
         _estimate_tokens(transcript_text),
     )
-    system, user = build_generation_prompt(transcript_text, source, style)
+    system, user = build_generation_prompt(
+        transcript_text, source, style, language,
+    )
     raw = _call_claude(client, system, user, config)
     return _parse_article_json(raw, content_id, style, source)
 
@@ -147,6 +153,7 @@ def _generate_chunked(
     style: str,
     config: ClaudeConfig,
     client: anthropic.Anthropic,
+    language: str = "en",
 ) -> Article:
     """Generate an article using chunked summarization."""
     chunks = _split_into_chunks(transcript_text)
@@ -163,7 +170,9 @@ def _generate_chunked(
         summaries.append(summary)
         logger.info("Summarized chunk %d/%d", i + 1, len(chunks))
 
-    system, user = build_synthesis_prompt(summaries, source, style)
+    system, user = build_synthesis_prompt(
+        summaries, source, style, language,
+    )
     raw = _call_claude(client, system, user, config)
     return _parse_article_json(raw, content_id, style, source)
 
