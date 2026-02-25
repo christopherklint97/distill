@@ -23,7 +23,7 @@ class GeneralConfig:
 class WhisperConfig:
     """Whisper transcription settings."""
 
-    backend: str = "local"
+    backend: str = "api"
     model: str = "base"
     language: str = "en"
 
