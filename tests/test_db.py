@@ -241,3 +241,55 @@ class TestSubscriptions:
         subs = db2.get_subscriptions()
         assert subs[0]["favorite"] == 1
         db2.close()
+
+
+class TestFeedLanguages:
+    def test_save_and_get(self, tmp_db: Database) -> None:
+        tmp_db.save_feed_language("https://example.com/feed.xml", "sv")
+        langs = tmp_db.get_recent_languages(feed_url="https://example.com/feed.xml")
+        assert len(langs) == 1
+        assert langs[0]["language"] == "sv"
+
+    def test_multiple_languages_per_feed(self, tmp_db: Database) -> None:
+        tmp_db.save_feed_language("https://example.com/feed.xml", "en")
+        tmp_db.save_feed_language("https://example.com/feed.xml", "sv")
+        langs = tmp_db.get_recent_languages(feed_url="https://example.com/feed.xml")
+        assert len(langs) == 2
+        # Most recent first
+        assert langs[0]["language"] == "sv"
+
+    def test_upsert_updates_timestamp(self, tmp_db: Database) -> None:
+        tmp_db.save_feed_language("https://example.com/feed.xml", "en")
+        tmp_db.save_feed_language("https://example.com/feed.xml", "sv")
+        # Re-select 'en' — should move it to most recent
+        tmp_db.save_feed_language("https://example.com/feed.xml", "en")
+        langs = tmp_db.get_recent_languages(feed_url="https://example.com/feed.xml")
+        assert langs[0]["language"] == "en"
+
+    def test_global_recent_languages(self, tmp_db: Database) -> None:
+        tmp_db.save_feed_language("https://example.com/feed1.xml", "en")
+        tmp_db.save_feed_language("https://example.com/feed2.xml", "sv")
+        tmp_db.save_feed_language("https://example.com/feed3.xml", "de")
+        langs = tmp_db.get_recent_languages()
+        assert len(langs) == 3
+        # Most recent first
+        assert langs[0]["language"] == "de"
+
+    def test_global_deduplicates(self, tmp_db: Database) -> None:
+        tmp_db.save_feed_language("https://example.com/feed1.xml", "en")
+        tmp_db.save_feed_language("https://example.com/feed2.xml", "en")
+        langs = tmp_db.get_recent_languages()
+        assert len(langs) == 1
+        assert langs[0]["language"] == "en"
+
+    def test_empty_results(self, tmp_db: Database) -> None:
+        langs = tmp_db.get_recent_languages(feed_url="https://example.com/feed.xml")
+        assert langs == []
+        langs = tmp_db.get_recent_languages()
+        assert langs == []
+
+    def test_limit(self, tmp_db: Database) -> None:
+        for i in range(10):
+            tmp_db.save_feed_language(f"https://example.com/feed{i}.xml", f"lang{i}")
+        langs = tmp_db.get_recent_languages(limit=3)
+        assert len(langs) == 3

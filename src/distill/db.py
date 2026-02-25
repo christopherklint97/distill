@@ -58,6 +58,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     favorite BOOLEAN DEFAULT FALSE,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS feed_languages (
+    feed_url TEXT NOT NULL,
+    language TEXT NOT NULL,
+    used_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (feed_url, language)
+);
 """
 
 
@@ -312,3 +319,48 @@ class Database:
             "DELETE FROM subscriptions WHERE feed_url = ?", (feed_url,)
         )
         self._conn.commit()
+
+    # --- Feed Languages ---
+
+    def save_feed_language(self, feed_url: str, language: str) -> None:
+        """Record a language selection for a feed."""
+        now = datetime.now().isoformat()
+        self._conn.execute(
+            """INSERT INTO feed_languages (feed_url, language, used_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(feed_url, language)
+               DO UPDATE SET used_at = ?""",
+            (feed_url, language, now, now),
+        )
+        self._conn.commit()
+
+    def get_recent_languages(
+        self,
+        feed_url: str | None = None,
+        limit: int = 5,
+    ) -> list[dict[str, object]]:
+        """Get recently used languages, optionally filtered by feed.
+
+        Returns dicts with 'language', 'feed_url', and 'used_at' keys,
+        ordered by most recent use.
+        """
+        if feed_url:
+            rows = self._conn.execute(
+                """SELECT language, feed_url, used_at
+                   FROM feed_languages
+                   WHERE feed_url = ?
+                   ORDER BY used_at DESC
+                   LIMIT ?""",
+                (feed_url, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT language, MAX(feed_url) as feed_url,
+                          MAX(used_at) as used_at
+                   FROM feed_languages
+                   GROUP BY language
+                   ORDER BY MAX(used_at) DESC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
