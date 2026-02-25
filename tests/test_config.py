@@ -13,7 +13,7 @@ class TestDefaults:
         assert default_config.general.default_style == "detailed"
         assert default_config.whisper.backend == "local"
         assert default_config.whisper.model == "base"
-        assert default_config.claude.model == "claude-sonnet-4-5-20250929"
+        assert default_config.claude.model == "claude-sonnet-4-6"
         assert default_config.claude.max_tokens == 8192
         assert default_config.subscriptions.check_interval_hours == 24
 
@@ -40,7 +40,7 @@ class TestFileLoading:
         tmp_config_path.write_text('[claude]\nmax_tokens = 4096\n')
         config = load_config(tmp_config_path)
         assert config.claude.max_tokens == 4096
-        assert config.claude.model == "claude-sonnet-4-5-20250929"
+        assert config.claude.model == "claude-sonnet-4-6"
 
 
 class TestEnvOverrides:

@@ -2,10 +2,10 @@
 
 from distill.models import ContentSource
 
-_SYSTEM_PROMPT = """You are an expert writer who transforms video and podcast \
-transcripts into well-structured, readable articles. You preserve the key \
-insights, arguments, and information from the original content while making \
-it engaging to read.
+_SYSTEM_PROMPT_TEMPLATE = """You are an expert writer who transforms video \
+and podcast transcripts into well-structured, readable articles. You preserve \
+the key insights, arguments, and information from the original content while \
+making it engaging to read.
 
 Guidelines:
 - Preserve direct quotes when they are particularly insightful
@@ -13,7 +13,32 @@ Guidelines:
 - Generate a descriptive title that captures the essence of the content
 - Include a TLDR/summary at the top
 - Use clear section headings to organize the content
-- Maintain the original tone and voice where appropriate"""
+- Maintain the original tone and voice where appropriate
+- Write the article in {language}"""
+
+
+_LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English",
+    "sv": "Swedish",
+    "de": "German",
+    "fr": "French",
+    "es": "Spanish",
+    "no": "Norwegian",
+    "da": "Danish",
+    "fi": "Finnish",
+    "nl": "Dutch",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "zh": "Chinese",
+}
+
+
+def _system_prompt(language: str) -> str:
+    """Build the system prompt with the target language."""
+    lang_name = _LANGUAGE_NAMES.get(language, language)
+    return _SYSTEM_PROMPT_TEMPLATE.format(language=lang_name)
 
 _STYLE_INSTRUCTIONS = {
     "detailed": (
@@ -80,17 +105,22 @@ def build_generation_prompt(
     transcript_text: str,
     source: ContentSource,
     style: str,
+    language: str = "en",
 ) -> tuple[str, str]:
     """Build the system and user prompts for article generation.
 
     Returns:
         Tuple of (system_prompt, user_prompt).
     """
-    style_instruction = _STYLE_INSTRUCTIONS.get(style, _STYLE_INSTRUCTIONS["detailed"])
+    style_instruction = _STYLE_INSTRUCTIONS.get(
+        style, _STYLE_INSTRUCTIONS["detailed"]
+    )
 
     source_info = f"Title: {source.title}\nType: {source.source_type}"
     if source.published_at:
-        source_info += f"\nPublished: {source.published_at.strftime('%Y-%m-%d')}"
+        source_info += (
+            f"\nPublished: {source.published_at.strftime('%Y-%m-%d')}"
+        )
 
     user_prompt = f"""Transform the following transcript into an article.
 
@@ -104,7 +134,7 @@ Style: {style_instruction}
 Transcript:
 {transcript_text}"""
 
-    return _SYSTEM_PROMPT, user_prompt
+    return _system_prompt(language), user_prompt
 
 
 def build_chunk_prompt(
@@ -120,9 +150,12 @@ def build_synthesis_prompt(
     summaries: list[str],
     source: ContentSource,
     style: str,
+    language: str = "en",
 ) -> tuple[str, str]:
     """Build prompts for synthesizing chunk summaries into a final article."""
-    style_instruction = _STYLE_INSTRUCTIONS.get(style, _STYLE_INSTRUCTIONS["detailed"])
+    style_instruction = _STYLE_INSTRUCTIONS.get(
+        style, _STYLE_INSTRUCTIONS["detailed"]
+    )
     numbered = "\n\n".join(
         f"--- Section {i + 1} ---\n{s}" for i, s in enumerate(summaries)
     )
@@ -132,4 +165,4 @@ def build_synthesis_prompt(
         style_instruction=style_instruction,
         output_format=_OUTPUT_FORMAT,
     )
-    return _SYSTEM_PROMPT, user_prompt
+    return _system_prompt(language), user_prompt
