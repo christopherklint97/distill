@@ -37,6 +37,14 @@ class ClaudeConfig:
 
 
 @dataclass
+class EmailConfig:
+    """Email delivery settings (via Resend API)."""
+
+    to: str = ""
+    from_addr: str = "Distill <distill@resend.dev>"
+
+
+@dataclass
 class SubscriptionConfig:
     """Subscription management settings."""
 
@@ -51,6 +59,7 @@ class DistillConfig:
     general: GeneralConfig = field(default_factory=GeneralConfig)
     whisper: WhisperConfig = field(default_factory=WhisperConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
     subscriptions: SubscriptionConfig = field(default_factory=SubscriptionConfig)
 
 
@@ -78,6 +87,8 @@ def _apply_env_overrides(config: DistillConfig) -> None:
         "DISTILL_WHISPER_LANGUAGE": (config.whisper, "language"),
         "DISTILL_CLAUDE_MODEL": (config.claude, "model"),
         "DISTILL_CLAUDE_MAX_TOKENS": (config.claude, "max_tokens"),
+        "DISTILL_EMAIL_TO": (config.email, "to"),
+        "DISTILL_EMAIL_FROM": (config.email, "from_addr"),
     }
     for env_var, (section, attr) in env_map.items():
         value = os.environ.get(env_var)
@@ -111,6 +122,7 @@ def load_config(path: Path | None = None) -> DistillConfig:
             "general": config.general,
             "whisper": config.whisper,
             "claude": config.claude,
+            "email": config.email,
             "subscriptions": config.subscriptions,
         }
         for section_name, section_obj in section_map.items():

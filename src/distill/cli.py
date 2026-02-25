@@ -61,6 +61,7 @@ def _generate_and_save(
     config: DistillConfig,
     db: Database,
     language: str = "en",
+    send: str | None = None,
 ) -> Path:
     """Run article generation pipeline and save results."""
     from distill.article.generator import generate_article
@@ -101,6 +102,15 @@ def _generate_and_save(
 
     db.save_article(article, output_path=str(path), output_format=output_format)
     console.print(f"[green]Article saved to {path}[/green]")
+
+    if send == "email":
+        from distill.output.email import send_email
+
+        to = config.email.to
+        from_addr = config.email.from_addr
+        send_email(article, to=to, from_addr=from_addr)
+        console.print(f"[green]Article emailed to {to}[/green]")
+
     return path
 
 
@@ -133,6 +143,13 @@ ArticleLanguageOption = Annotated[
         help="Language for the generated article (e.g., en, sv)",
     ),
 ]
+SendOption = Annotated[
+    str | None,
+    typer.Option(
+        "--send",
+        help="Send the article via a delivery method (e.g., email)",
+    ),
+]
 
 
 @app.command()
@@ -143,6 +160,7 @@ def youtube(
     output: OutputOption = None,
     language: LanguageOption = None,
     article_language: ArticleLanguageOption = None,
+    send: SendOption = None,
 ) -> None:
     """Process a YouTube video into an article."""
     from distill.sources.youtube import extract_video_id, fetch_transcript
@@ -204,7 +222,7 @@ def youtube(
     )
     _generate_and_save(
         transcript, source, style, format, output_dir, config, db,
-        article_lang,
+        article_lang, send,
     )
     db.close()
 
@@ -217,6 +235,7 @@ def podcast(
     output: OutputOption = None,
     language: LanguageOption = None,
     article_language: ArticleLanguageOption = None,
+    send: SendOption = None,
 ) -> None:
     """Browse and process episodes from a podcast feed."""
     from distill.sources.podcast import (
@@ -280,7 +299,7 @@ def podcast(
     )
     _generate_and_save(
         transcript, source, style, format, output_dir, config, db,
-        article_lang,
+        article_lang, send,
     )
     db.close()
 
@@ -294,6 +313,7 @@ def podcast_episode(
     output: OutputOption = None,
     language: LanguageOption = None,
     article_language: ArticleLanguageOption = None,
+    send: SendOption = None,
 ) -> None:
     """Process a podcast episode from a direct audio URL."""
     from distill.sources.podcast import download_episode
@@ -328,7 +348,7 @@ def podcast_episode(
     )
     _generate_and_save(
         transcript, source, style, format, output_dir, config, db,
-        article_lang,
+        article_lang, send,
     )
     db.close()
 
@@ -504,6 +524,7 @@ def regenerate(
     output: OutputOption = None,
     language: LanguageOption = None,
     article_language: ArticleLanguageOption = None,
+    send: SendOption = None,
 ) -> None:
     """Regenerate an article from a cached transcript."""
     config = _get_config()
@@ -529,7 +550,7 @@ def regenerate(
     )
     _generate_and_save(
         transcript, source, style, format, output_dir, config, db,
-        article_lang,
+        article_lang, send,
     )
     db.close()
 
@@ -544,6 +565,7 @@ def config_show() -> None:
         "general": config.general,
         "whisper": config.whisper,
         "claude": config.claude,
+        "email": config.email,
         "subscriptions": config.subscriptions,
     }
 
