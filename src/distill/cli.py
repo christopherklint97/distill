@@ -259,6 +259,55 @@ def _select_feed_interactive(db: Database) -> str:
         return str(typer.prompt("Enter feed URL"))
 
 
+def _select_language_interactive(
+    db: Database, feed_url: str, config: DistillConfig,
+) -> str:
+    """Show interactive menu to pick a transcription language."""
+    default_lang = config.whisper.language
+    feed_langs = db.get_recent_languages(feed_url=feed_url)
+    all_langs = db.get_recent_languages()
+
+    # Build ordered options: feed-specific first, then global, deduplicated
+    seen: set[str] = set()
+    options: list[tuple[str, str]] = []  # (language_code, label_hint)
+
+    for row in feed_langs:
+        lang = str(row["language"])
+        if lang not in seen:
+            seen.add(lang)
+            options.append((lang, "last used for this podcast"))
+
+    for row in all_langs:
+        lang = str(row["language"])
+        if lang not in seen:
+            seen.add(lang)
+            options.append((lang, "recently used"))
+
+    if default_lang not in seen:
+        options.insert(0, (default_lang, "default"))
+
+    if len(options) == 1:
+        # Only one option — confirm with simple prompt
+        lang = options[0][0]
+        result: str = typer.prompt("\nLanguage for transcription", default=lang)
+        return result
+
+    console.print("\n[bold]Language for transcription:[/bold]\n")
+    for i, (lang, hint) in enumerate(options):
+        console.print(f"  [{i + 1}] {lang} ({hint})")
+    console.print(f"  [{len(options) + 1}] Enter a different language code")
+
+    choice: int = typer.prompt("\nSelect option", default=1, type=int)
+    if choice == len(options) + 1:
+        custom: str = typer.prompt("Enter language code")
+        return custom
+    if choice < 1 or choice > len(options):
+        console.print("[red]Invalid selection.[/red]")
+        raise typer.Exit(1)
+    selected: str = options[choice - 1][0]
+    return selected
+
+
 def _prompt_save_favorite(db: Database, feed_url: str, feed_title: str | None) -> None:
     """After episode selection, offer to save as favorite if not already."""
     subs = db.get_subscriptions()
@@ -328,6 +377,10 @@ def podcast(
     source = episode_to_source(episode, feed_url)
     cid = content_id_for_url(source.url)
 
+    # Language selection — interactive menu when no --language flag
+    if interactive and language is None:
+        language = _select_language_interactive(db, feed_url, config)
+
     existing = db.get_transcript(cid)
     if existing:
         console.print("[dim]Using cached transcript.[/dim]")
@@ -336,6 +389,10 @@ def podcast(
         console.print(f"[bold]Downloading: {episode.title}[/bold]")
         audio_path = download_episode(episode.audio_url)
         transcript = _transcribe_audio(audio_path, cid, config, language)
+
+    # Save the language selection for future quick access
+    selected_lang = language or config.whisper.language
+    db.save_feed_language(feed_url, selected_lang)
 
     db.save_source(source)
     db.save_transcript(transcript)
