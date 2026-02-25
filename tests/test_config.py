@@ -11,7 +11,7 @@ class TestDefaults:
     def test_default_config(self, default_config: DistillConfig) -> None:
         assert default_config.general.default_format == "markdown"
         assert default_config.general.default_style == "detailed"
-        assert default_config.whisper.backend == "local"
+        assert default_config.whisper.backend == "api"
         assert default_config.whisper.model == "base"
         assert default_config.claude.model == "claude-sonnet-4-6"
         assert default_config.claude.max_tokens == 8192
