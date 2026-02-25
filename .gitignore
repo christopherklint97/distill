@@ -39,6 +39,7 @@ Thumbs.db
 # Environment files
 .env
 .env.*
+.envrc
 
 # Config (may contain API keys)
 config.toml
