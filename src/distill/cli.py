@@ -308,6 +308,34 @@ def _select_language_interactive(
     return selected
 
 
+def _select_send_interactive(config: DistillConfig) -> str | None:
+    """Show interactive menu to optionally send article via email."""
+    configured_to = config.email.to
+
+    options: list[tuple[str, str]] = []
+    options.append(("Don't send", "skip"))
+    if configured_to:
+        options.append((f"Email to {configured_to}", "email"))
+    options.append(("Email to a different address", "custom"))
+
+    console.print("\n[bold]Send article via email?[/bold]\n")
+    for i, (label, _action) in enumerate(options):
+        console.print(f"  [{i + 1}] {label}")
+
+    choice: int = typer.prompt("\nSelect option", default=1, type=int)
+    if choice < 1 or choice > len(options):
+        console.print("[red]Invalid selection.[/red]")
+        raise typer.Exit(1)
+
+    action = options[choice - 1][1]
+    if action == "skip":
+        return None
+    if action == "custom":
+        address: str = typer.prompt("Enter email address")
+        config.email.to = address
+    return "email"
+
+
 def _prompt_save_favorite(db: Database, feed_url: str, feed_title: str | None) -> None:
     """After episode selection, offer to save as favorite if not already."""
     subs = db.get_subscriptions()
@@ -380,6 +408,10 @@ def podcast(
     # Language selection — interactive menu when no --language flag
     if interactive and language is None:
         language = _select_language_interactive(db, feed_url, config)
+
+    # Send selection — interactive menu when no --send flag
+    if interactive and send is None:
+        send = _select_send_interactive(config)
 
     existing = db.get_transcript(cid)
     if existing:
