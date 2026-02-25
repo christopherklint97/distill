@@ -51,6 +51,12 @@ distill youtube "https://youtu.be/dQw4w9WgXcQ" --format html --style concise
 
 # Save to a specific directory
 distill youtube "https://youtube.com/watch?v=abc123" --output ./articles/
+
+# Set transcription language
+distill youtube "https://youtube.com/watch?v=abc123" --language sv
+
+# Transcribe in Swedish but write the article in English
+distill youtube "https://youtube.com/watch?v=abc123" --language sv --article-language en
 ```
 
 ### Podcasts
@@ -84,6 +90,9 @@ distill history
 
 # Regenerate with a different style
 distill regenerate <content-id> --style bullets --format epub
+
+# Regenerate in a different language
+distill regenerate <content-id> --article-language sv
 ```
 
 ### Configuration
@@ -94,7 +103,7 @@ distill config show
 
 # Change settings
 distill config set whisper.backend api
-distill config set claude.model claude-sonnet-4-5-20250929
+distill config set claude.model claude-sonnet-4-6
 ```
 
 Config file location: `~/.config/distill/config.toml`
@@ -111,7 +120,7 @@ model = "base"       # tiny, base, small, medium, large
 language = "en"
 
 [claude]
-model = "claude-sonnet-4-5-20250929"
+model = "claude-sonnet-4-6"
 max_tokens = 8192
 
 [subscriptions]
