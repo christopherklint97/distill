@@ -1,6 +1,7 @@
 """Tests for the database layer."""
 
 from datetime import datetime
+from pathlib import Path
 
 from distill.db import Database, content_id_for_url
 from distill.models import (
@@ -152,3 +153,91 @@ class TestSubscriptions:
         tmp_db.save_subscription("https://example.com/feed.xml")
         tmp_db.delete_subscription("https://example.com/feed.xml")
         assert len(tmp_db.get_subscriptions()) == 0
+
+    def test_set_favorite(self, tmp_db: Database) -> None:
+        tmp_db.save_subscription("https://example.com/feed.xml", title="Pod")
+        tmp_db.set_favorite("https://example.com/feed.xml", favorite=True)
+        subs = tmp_db.get_subscriptions()
+        assert subs[0]["favorite"] == 1
+
+    def test_unfavorite(self, tmp_db: Database) -> None:
+        tmp_db.save_subscription(
+            "https://example.com/feed.xml", title="Pod", favorite=True
+        )
+        tmp_db.set_favorite("https://example.com/feed.xml", favorite=False)
+        subs = tmp_db.get_subscriptions()
+        assert subs[0]["favorite"] == 0
+
+    def test_save_subscription_with_favorite(self, tmp_db: Database) -> None:
+        tmp_db.save_subscription(
+            "https://example.com/feed.xml", title="Pod", favorite=True
+        )
+        subs = tmp_db.get_subscriptions()
+        assert subs[0]["favorite"] == 1
+
+    def test_save_subscription_preserves_favorite(self, tmp_db: Database) -> None:
+        tmp_db.save_subscription(
+            "https://example.com/feed.xml", title="Pod", favorite=True
+        )
+        # Re-save without specifying favorite — should preserve
+        tmp_db.save_subscription(
+            "https://example.com/feed.xml", title="Pod Updated"
+        )
+        subs = tmp_db.get_subscriptions()
+        assert subs[0]["favorite"] == 1
+        assert subs[0]["title"] == "Pod Updated"
+
+    def test_get_subscriptions_favorites_first(self, tmp_db: Database) -> None:
+        tmp_db.save_subscription(
+            "https://example.com/a.xml", title="A Podcast"
+        )
+        tmp_db.save_subscription(
+            "https://example.com/b.xml", title="B Podcast", favorite=True
+        )
+        tmp_db.save_subscription(
+            "https://example.com/c.xml", title="C Podcast"
+        )
+        subs = tmp_db.get_subscriptions()
+        assert subs[0]["title"] == "B Podcast"
+
+    def test_get_recent_feeds(self, tmp_db: Database) -> None:
+        # Add podcast sources with feed_url
+        source1 = ContentSource(
+            url="https://example.com/ep1.mp3",
+            title="Episode 1",
+            source_type="podcast",
+            feed_url="https://example.com/feed1.xml",
+        )
+        source2 = ContentSource(
+            url="https://example.com/ep2.mp3",
+            title="Episode 2",
+            source_type="podcast",
+            feed_url="https://example.com/feed2.xml",
+        )
+        tmp_db.save_source(source1)
+        tmp_db.save_source(source2)
+
+        # Subscribe to feed1 — only feed2 should appear in recents
+        tmp_db.save_subscription("https://example.com/feed1.xml")
+        recents = tmp_db.get_recent_feeds()
+        assert len(recents) == 1
+        assert recents[0]["feed_url"] == "https://example.com/feed2.xml"
+
+    def test_get_recent_feeds_excludes_youtube(self, tmp_db: Database) -> None:
+        source = _make_source()  # source_type="youtube"
+        tmp_db.save_source(source)
+        recents = tmp_db.get_recent_feeds()
+        assert len(recents) == 0
+
+    def test_migration_idempotent(self, tmp_path: Path) -> None:
+        """Opening the DB twice doesn't fail on migration."""
+        db_path = tmp_path / "migrate.db"
+        db1 = Database(db_path)
+        db1.save_subscription("https://example.com/feed.xml", favorite=True)
+        db1.close()
+
+        # Second open triggers migration again — should not raise
+        db2 = Database(db_path)
+        subs = db2.get_subscriptions()
+        assert subs[0]["favorite"] == 1
+        db2.close()

@@ -9,6 +9,7 @@ Transform YouTube videos and podcast episodes into readable articles using LLM-p
 
 - **YouTube processing** — Extract captions or transcribe audio, then generate articles
 - **Podcast support** — Parse RSS feeds, browse episodes, download and transcribe audio
+- **Podcast favorites** — Save frequently used podcasts as favorites for quick interactive access
 - **Multiple article styles** — Detailed, concise, summary, or bullet-point formats
 - **Multiple output formats** — Markdown, HTML, or EPUB
 - **Subscription management** — Subscribe to podcast feeds and sync for new episodes
@@ -67,20 +68,29 @@ distill youtube "https://youtube.com/watch?v=abc123" --send email
 ### Podcasts
 
 ```bash
-# Browse and select an episode from a feed
+# Interactive mode — pick from favorites, recents, or add a new podcast
+distill podcast
+
+# Browse and select an episode from a specific feed
 distill podcast "https://example.com/feed.xml"
 
 # Process a direct audio URL
 distill podcast-episode "https://example.com/episode.mp3" --title "Episode Name"
 ```
 
-### Subscriptions
+### Favorites & Subscriptions
 
 ```bash
+# Mark a podcast as a favorite (subscribes if needed)
+distill favorite "https://example.com/feed.xml"
+
+# Remove from favorites
+distill unfavorite "https://example.com/feed.xml"
+
 # Subscribe to a feed
 distill subscribe "https://example.com/feed.xml" --auto-process
 
-# List subscriptions
+# List subscriptions (shows favorite status)
 distill subscriptions
 
 # Check for new episodes
